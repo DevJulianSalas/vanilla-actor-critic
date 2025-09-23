@@ -39,7 +39,6 @@ class SkipFrame(gym.Wrapper):
 class GrayScaleObservation(gym.ObservationWrapper):
     def __init__(self, env):
         super(GrayScaleObservation, self).__init__(env)
-        print('sss')
         obj_shape = self.observation_space.shape[:2]
         self.observation_space = Box(low=0, high=255, shape=obj_shape, dtype=np.uint8)
     
@@ -72,6 +71,6 @@ class ResizeObservation(gym.ObservationWrapper):
 
 env = SkipFrame(env, skip=4)
 env = GrayScaleObservation(env)
-# env = ResizeObservation(env, shape=84)
-# env = FrameStack(env, num_stack=4)
+env = ResizeObservation(env, shape=84)
+env = FrameStack(env, num_stack=4)
 env.reset()
