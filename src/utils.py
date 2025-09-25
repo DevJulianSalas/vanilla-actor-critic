@@ -15,7 +15,10 @@ def parse_state(state, device):
 def get_action_id(action):
      return torch.argmax(action, axis=1).item()
 
-def infer_flat(features, state):
-     c, h, w = state
-     with torch.no_grad():
-          return features(torch.zeros(1,c,h,w).view(1-1).size(1))
+def infer_flat(features, state, device, dtype=torch.float32):
+    c, h, w = state
+    with torch.no_grad():
+          x = torch.zeros(1, c, h, w, device=device, dtype=dtype)
+          y = features(x)
+          n_flat = y.flatten(1).shape[1]
+    return n_flat

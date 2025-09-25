@@ -42,7 +42,7 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    def __init__(self, state_dim):
+    def __init__(self, state_dim, device=None):
         super(Critic, self).__init__()
         c, h, w = state_dim
         self.features = nn.Sequential(
@@ -53,7 +53,7 @@ class Critic(nn.Module):
             nn.Conv2d(64, 64, 3, 1), 
             nn.ReLU(),
         )
-        n_flat = infer_flat(self.features, state_dim)
+        n_flat = infer_flat(self.features, state_dim, device=device)
         self.value = nn.Sequential(
             nn.Flatten(),
             nn.Linear(n_flat, 512),
@@ -62,28 +62,28 @@ class Critic(nn.Module):
         )
 
     def forward(self, state):
-        return self.value(self.features(state))
+        return self.value(self.features(state)).squeeze(-1)
 
         
 
 
 def train():
     print("Training...")
+    device = select_device()
     state_dim = env.observation_space.shape
     actor = Actor(state_dim=state_dim, action_dim=env.action_space.n).float()
-    critic = Critic(state_dim=state_dim)
-    device = select_device()
+    critic = Critic(state_dim=state_dim, device=device).float()
     for episode in range(EPISODES):
         state = parse_state(env.reset(), device=device)
         episode_reward = 0
         actor.train()
+        critic.train()
         for step in range(MAX_STEPS_PER_EPISODE):
             action_values = actor(state)
             action = get_action_id(action_values)
             next_state, reward, terminated, truncated, info = env.step(action)
             done = truncated or terminated
             episode_reward += reward
-
             value = critic(state)
 
 
