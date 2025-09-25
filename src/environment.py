@@ -29,6 +29,7 @@ class SkipFrame(gym.Wrapper):
     def step(self, action):
         total_reward = 0.0
         for i in range(self._skip):
+            print(action)
             obs, reward, done, trunk, info = self.env.step(action)
             total_reward += reward
             if done:
@@ -48,8 +49,10 @@ class GrayScaleObservation(gym.ObservationWrapper):
     
     def observation(self, observation):
         observation = self.permute_observation(observation)
-        transform = T.Grayscale()
-        return transform(observation)
+        observation = T.Grayscale()(observation)
+        observation = observation.squeeze(0)
+        observation = observation / 255.0
+        return observation
 
 class ResizeObservation(gym.ObservationWrapper):
     def __init__(self, env, shape):
@@ -58,19 +61,17 @@ class ResizeObservation(gym.ObservationWrapper):
             self.shape = (shape, shape)
         else:
             self.shape = tuple(shape)
-        obs_shape = self.shape + self.observation_space.shape[2:]
-        self.observation_space = Box(low=0, high=255, shape=obs_shape, dtype=np.uint8)
+        self.observation_space = Box(low=0, high=255, shape=self.shape, dtype=np.uint8)
 
     
     def observation(self, observation):
-        transform = T.Compose(
-            [T.Resize(self.shape, antialias=True), T.Normalize(0, 255)]
-        )
-        return transform(observation)
+        obs = observation.unsqueeze(0)
+        obs = T.Resize(self.shape, antialias=True)(obs)
+        obs = obs.squeeze(0)
+        return obs
     
 
 env = SkipFrame(env, skip=4)
 env = GrayScaleObservation(env)
 env = ResizeObservation(env, shape=84)
 env = FrameStack(env, num_stack=4)
-env.reset()

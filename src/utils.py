@@ -7,6 +7,10 @@ def select_device():
     )
 
 
-def parse_state(state):
-     print(state[0])
-     return state[0].__array__() if isinstance(state, tuple) else state.__array__()
+def parse_state(state, device):
+     state = state[0].__array__() if isinstance(state, tuple) else state.__array__() 
+     return torch.tensor(state, device=device).unsqueeze(0)
+
+
+def get_action_id(action):
+     return torch.argmax(action, axis=1).item()

@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 import torch.nn.functional as F
-from utils import select_device, parse_state
+from utils import select_device, parse_state, get_action_id
 
 
 #environment
@@ -11,8 +11,8 @@ from environment import env
 
 
 #Parameters
-EPISODES = 5000
-MAX_STEPS_PER_EPISODE = 1600
+EPISODES = 10
+MAX_STEPS_PER_EPISODE = 5
 HIDDEN_DIM = 256
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
@@ -31,36 +31,52 @@ class Actor(nn.Module):
           nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
           nn.ReLU(),
           nn.Flatten(),
-          nn.Linear(3200, 512),
+          nn.Linear(3136, 512),
           nn.ReLU(),
           nn.Linear(512, action_dim)
         )        
 
 
     def forward(self, state: float):
-        print(state)
         return self.conv(state)
 
-        
+
+class Critic(nn.Module):
+    def __init__(self, state_dim):
+        super(Critic, self).__init__()
+        self.layer1 = nn.Linear(state_dim, HIDDEN_DIM)
+        self.layer2 = nn.Linear(HIDDEN_DIM, HIDDEN_DIM)
+        self.layer3 = nn.Linear(HIDDEN_DIM, 1)
+
+    def forward(self, state):
+        x = F.relu(self.layer1(state))
+        x = F.relu(self.layer2(x))
+        value = self.layer(x)
+        return value
+
         
 
 
 def train():
     print("Training...")
     state_dim = env.observation_space.shape
-    actor = Actor(state_dim=state_dim, action_dim=env.action_space.n)
+    actor = Actor(state_dim=state_dim, action_dim=env.action_space.n).float()
+    critic = Critic(state_dim=state_dim)
     device = select_device()
     for episode in range(EPISODES):
-        state, info = env.reset()
-        state = parse_state(state)
-        state = torch.tensor(state, device=device).unsqueeze(0)
+        state = parse_state(env.reset(), device=device)
         episode_reward = 0
         actor.train()
         for step in range(MAX_STEPS_PER_EPISODE):
-            action = actor(state)
-            # next_state, reward, terminated, truncated, info = env.step(action)
-            # done = truncated or terminated
-            # episode_reward += reward
+            action_values = actor(state)
+            action = get_action_id(action_values)
+            next_state, reward, terminated, truncated, info = env.step(action)
+            done = truncated or terminated
+            episode_reward += reward
+
+            value = critic(state)
+
+
 
         
     
