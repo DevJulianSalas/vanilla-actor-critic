@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Normal
 import torch.nn.functional as F
-from utils import select_device, parse_state, get_action_id
+from utils import select_device, parse_state, get_action_id, infer_flat
 
 
 #environment
@@ -44,15 +44,25 @@ class Actor(nn.Module):
 class Critic(nn.Module):
     def __init__(self, state_dim):
         super(Critic, self).__init__()
-        self.layer1 = nn.Linear(state_dim, HIDDEN_DIM)
-        self.layer2 = nn.Linear(HIDDEN_DIM, HIDDEN_DIM)
-        self.layer3 = nn.Linear(HIDDEN_DIM, 1)
+        c, h, w = state_dim
+        self.features = nn.Sequential(
+            nn.Conv2d(c, 32, 8, 4), 
+            nn.ReLU(),
+            nn.Conv2d(32, 64, 4, 2), 
+            nn.ReLU(),
+            nn.Conv2d(64, 64, 3, 1), 
+            nn.ReLU(),
+        )
+        n_flat = infer_flat(self.features, state_dim)
+        self.value = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(n_flat, 512),
+            nn.ReLU(),
+            nn.Linear(512, 1)
+        )
 
     def forward(self, state):
-        x = F.relu(self.layer1(state))
-        x = F.relu(self.layer2(x))
-        value = self.layer(x)
-        return value
+        return self.value(self.features(state))
 
         
 
