@@ -1,8 +1,8 @@
 import torch
 import torch.nn as nn
-from torch.distributions import Normal, Categorical
+from torch.distributions import Categorical
 import torch.nn.functional as F
-from utils import select_device, parse_state, get_action_id, infer_flat
+from utils import select_device, parse_state, infer_flat
 
 
 #environment
@@ -11,14 +11,15 @@ from environment import env
 
 
 #Parameters
-EPISODES = 10
-MAX_STEPS_PER_EPISODE = 5
+EPISODES = 5000
+MAX_STEPS_PER_EPISODE = 1500
 HIDDEN_DIM = 256
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
 GAMMA = 0.99
 ENTROPY_WEIGHT = 1e-3 
 LR_ACTOR = 1e-5
+LR_CRITIC = 3e-4
 
 
 
@@ -43,7 +44,7 @@ class Actor(nn.Module):
         )
 
     def forward(self, state: float):
-        z = self.features(state)
+        z = self.conv(state)
         logits = self.policy_head(z)
         dist = Categorical(logits=logits)
         a = dist.sample() # a ~ π_θ(·|s_t)
@@ -85,7 +86,9 @@ def train():
     actor = Actor(state_dim=state_dim, action_dim=env.action_space.n, device=device).float()  #π_θ(a|s) logits
     critic = Critic(state_dim=state_dim, device=device).float()
     #optimizers
-    optimizer_actor = torch.optim.Adam(actor.parameters, lr=LR_ACTOR)
+    optimizer_actor = torch.optim.Adam(actor.parameters(), lr=LR_ACTOR)
+    optimizer_critic = torch.optim.Adam(critic.parameters(), lr=LR_CRITIC)
+    all_episode_rewards = []
     for episode in range(EPISODES):
         state = parse_state(env.reset(), device=device)
         episode_reward = 0
@@ -95,7 +98,7 @@ def train():
             #actor policy forward
             logp, entropy, action = actor(state) # π_θ(·|s_t) a_t ~ π_θ(·|s_t)
             
-            next_state, reward, terminated, truncated, info = env.step(action)
+            next_state, reward, terminated, truncated, info = env.step(action.item())
             done = truncated or terminated
             episode_reward += reward
             
@@ -113,6 +116,7 @@ def train():
             td_error = td_target - value_critic  #δ_t = y_t - V(s_t)
             #losses
             actor_loss = - (logp * td_error.detach()) - ENTROPY_WEIGHT * entropy
+            value_loss = F.mse_loss(value_critic, td_target)
 
 
             #optimization
@@ -120,8 +124,17 @@ def train():
             actor_loss.backward()
             optimizer_actor.step()
 
+            optimizer_critic.zero_grad()
+            value_loss.backward()
+            optimizer_critic.step()
 
+            state = next_state
+            if done:
+                break
+        all_episode_rewards.append(episode_reward)
 
+    env.close()
+    print("Training finished.")
 
         
     
