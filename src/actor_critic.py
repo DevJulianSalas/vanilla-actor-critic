@@ -3,7 +3,8 @@ import torch.nn as nn
 from torch.distributions import Categorical
 import torch.nn.functional as F
 from utils import select_device, parse_state, infer_flat
-
+from collections import deque
+import numpy as np
 
 #environment
 from environment import env
@@ -88,7 +89,10 @@ def train():
     #optimizers
     optimizer_actor = torch.optim.Adam(actor.parameters(), lr=LR_ACTOR)
     optimizer_critic = torch.optim.Adam(critic.parameters(), lr=LR_CRITIC)
+
+    #rewards
     all_episode_rewards = []
+    rewards_window = deque(maxlen=100)
     for episode in range(EPISODES):
         state = parse_state(env.reset(), device=device)
         episode_reward = 0
@@ -132,9 +136,20 @@ def train():
             if done:
                 break
         all_episode_rewards.append(episode_reward)
+        rewards_window.append(episode_reward)
+        avg_reward = np.mean(rewards_window)
+        print(episode)
+        if (episode + 1) % 50 == 0:
+            print(f'Episode {episode + 1}/{EPISODES} | last rec: {episode_reward:.2f} | media (100 ep): {avg_reward:.2f}')
 
+        if avg_reward >= 475.0 and len(rewards_window) >= 100:
+            print(f'Environment solved in {episode-100} episodes! Average Reward: {avg_reward:.2f}')
+            torch.save(actor.state_dict(), 'actor.pth')
+            torch.save(critic.state_dict(), 'critic.pth')
+            break
     env.close()
     print("Training finished.")
+    
 
         
     
