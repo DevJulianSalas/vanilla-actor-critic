@@ -4,7 +4,6 @@ import torch
 from gym.spaces import Box
 from gym.wrappers import FrameStack
 from nes_py.wrappers import JoypadSpace
-from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
 from torchvision import transforms as T
 
 import gym_super_mario_bros
@@ -17,8 +16,13 @@ import numpy as np
 #world = 1 to 8
 #stage = 1 to 4
 #version = 0 to 4 -> indicating the ROM mode to use (0 is the original)
-env = gym_super_mario_bros.make('SuperMarioBros-1-1-v0', apply_api_compatibility=True)
-env = JoypadSpace(env, SIMPLE_MOVEMENT)
+env = gym_super_mario_bros.make(
+    'SuperMarioBros-v3',
+    render_mode='rgb_array',
+    apply_api_compatibility=True
+)
+# env = JoypadSpace(env, SIMPLE_MOVEMENT)
+env = JoypadSpace(env, [["right"], ["right", "A"]])
 
 
 class SkipFrame(gym.Wrapper):

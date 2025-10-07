@@ -1,9 +1,11 @@
 import torch
 import gym
+from gym.wrappers import FrameStack
 import matplotlib.pyplot as plt
 from nes_py.wrappers import JoypadSpace
 import gym_super_mario_bros
-from gym_super_mario_bros.actions import SIMPLE_MOVEMENT
+from environment import SkipFrame, GrayScaleObservation, ResizeObservation
+
 
 # import gymnasium.wrappers
 
@@ -50,18 +52,23 @@ def save_model(model, path):
 
 
 def record_environment():
-    env_record = gym_super_mario_bros.make(
-          'SuperMarioBros-1-1-v0', 
+    base = gym_super_mario_bros.make(
+          'SuperMarioBros-v3',
           render_mode='rgb_array',
           apply_api_compatibility=True
     )
-    env_record = JoypadSpace(env_record, SIMPLE_MOVEMENT)
-    env_record = gym.wrappers.RecordVideo(
-        env_record, 
+    base = JoypadSpace(base, [["right"], ["right", "A"]])
+    base = SkipFrame(base, skip=4)
+    base = GrayScaleObservation(base)
+    base = ResizeObservation(base, shape=84)
+    base  = FrameStack(base, num_stack=4)
+    env_wrapped = gym.wrappers.RecordVideo(
+        base, 
         video_folder='videos/',
-        episode_trigger=lambda x: x % 50 == 0,
+        # episode_trigger=lambda x: x % 50 == 0,
+        episode_trigger=lambda ep: True,
         name_prefix='mario-agent'
     )
-    return env_record
+    return env_wrapped
 
      

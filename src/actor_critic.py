@@ -12,8 +12,8 @@ from environment import env
 
 
 #Parameters
-EPISODES = 5000
-MAX_STEPS_PER_EPISODE = 1500
+EPISODES = 10
+MAX_STEPS_PER_EPISODE = 5
 HIDDEN_DIM = 256
 LOG_STD_MIN = -20
 LOG_STD_MAX = 2
@@ -80,7 +80,7 @@ class Critic(nn.Module):
         
 
 
-def train():
+def train_eval():
     print("Training...")
     device = select_device()
     state_dim = env.observation_space.shape
@@ -93,86 +93,88 @@ def train():
     #rewards
     all_episode_rewards = []
     rewards_window = deque(maxlen=100)
-    # for episode in range(EPISODES):
-    #     state = parse_state(env.reset(), device=device)
-    #     episode_reward = 0
-    #     actor.train()
-    #     critic.train()
-    #     for step in range(MAX_STEPS_PER_EPISODE):
-    #         #actor policy forward
-    #         logp, entropy, action = actor(state) # π_θ(·|s_t) a_t ~ π_θ(·|s_t)
+    for episode in range(EPISODES):
+        state = parse_state(env.reset(), device=device)
+        episode_reward = 0
+        actor.train()
+        critic.train()
+        for step in range(MAX_STEPS_PER_EPISODE):
+            #actor policy forward
+            logp, entropy, action = actor(state) # π_θ(·|s_t) a_t ~ π_θ(·|s_t)
             
-    #         next_state, reward, terminated, truncated, info = env.step(action.item())
-    #         done = truncated or terminated
-    #         episode_reward += reward
+            next_state, reward, terminated, truncated, info = env.step(action.item())
+            done = truncated or terminated
+            episode_reward += reward
             
-    #         # #tensor conversion
-    #         reward_tensor = torch.tensor(episode_reward, device=device)
-    #         next_state = parse_state(next_state, device=device)
-    #         mask = torch.tensor(1 - done, device=device, dtype=torch.float32)
+            # #tensor conversion
+            reward_tensor = torch.tensor(episode_reward, device=device)
+            next_state = parse_state(next_state, device=device)
+            mask = torch.tensor(1 - done, device=device, dtype=torch.float32)
             
-    #         value_critic = critic(state) #v = V_φ(s_t)
-    #         with torch.no_grad():
-    #             next_value = critic(next_state)  # V_φ(s_{t+1})
-    #             td_target = reward_tensor + GAMMA * next_value * mask # td targetg y_t = r_t + γ V(s_{t+1})
+            value_critic = critic(state) #v = V_φ(s_t)
+            with torch.no_grad():
+                next_value = critic(next_state)  # V_φ(s_{t+1})
+                td_target = reward_tensor + GAMMA * next_value * mask # td targetg y_t = r_t + γ V(s_{t+1})
             
-    #         #error
-    #         td_error = td_target - value_critic  #δ_t = y_t - V(s_t)
-    #         #losses
-    #         actor_loss = - (logp * td_error.detach()) - ENTROPY_WEIGHT * entropy
-    #         value_loss = F.mse_loss(value_critic, td_target)
+            #error
+            td_error = td_target - value_critic  #δ_t = y_t - V(s_t)
+            #losses
+            actor_loss = - (logp * td_error.detach()) - ENTROPY_WEIGHT * entropy
+            value_loss = F.mse_loss(value_critic, td_target)
 
 
-    #         #optimization
-    #         optimizer_actor.zero_grad()
-    #         actor_loss.backward()
-    #         optimizer_actor.step()
+            #optimization
+            optimizer_actor.zero_grad()
+            actor_loss.backward()
+            optimizer_actor.step()
 
-    #         optimizer_critic.zero_grad()
-    #         value_loss.backward()
-    #         optimizer_critic.step()
+            optimizer_critic.zero_grad()
+            value_loss.backward()
+            optimizer_critic.step()
 
-    #         state = next_state
-    #         if done:
-    #             break
-    #     all_episode_rewards.append(episode_reward)
-    #     rewards_window.append(episode_reward)
-    #     avg_reward = np.mean(rewards_window)
-    #     print(episode)
-    #     if (episode + 1) % 50 == 0:
-    #         print(f'Episode {episode + 1}/{EPISODES} | last rec: {episode_reward:.2f} | media (100 ep): {avg_reward:.2f}')
+            state = next_state
+            if done:
+                break
+        all_episode_rewards.append(episode_reward)
+        rewards_window.append(episode_reward)
+        avg_reward = np.mean(rewards_window)
+        if (episode + 1) % 50 == 0:
+            print(f'Episode {episode + 1}/{EPISODES} | last rec: {episode_reward:.2f} | media (100 ep): {avg_reward:.2f}')
 
-    #     if avg_reward >= 475.0 and len(rewards_window) >= 100:
-    #         print(f'Environment solved in {episode-100} episodes! Average Reward: {avg_reward:.2f}')
-    #         save_model(actor, 'actor.pth')
-    #         save_model(critic, 'critic.pth')
-    #         break
+        if avg_reward >= 475.0 and len(rewards_window) >= 100:
+            print(f'Environment solved in {episode-100} episodes! Average Reward: {avg_reward:.2f}')
+            save_model(actor, 'actor.pth')
+            save_model(critic, 'critic.pth')
+            break
         
         
-    # env.close()
+    env.close()
     print("Training finished.")
     plot_rewards(all_episode_rewards, env_name=env.spec.id)
-    env_record = record_environment()
+
     
     actor.eval()
     critic.eval()
+    
+    env_wrapped = record_environment()
 
-    state = parse_state(env_record.reset(), device=device)
+    state_eval = parse_state(env_wrapped.reset(), device=device)
+    
     done = False
     test_reward = 0
     test_steps = 0
 
     while not done and test_steps < MAX_STEPS_PER_EPISODE:
         with torch.no_grad():
-            _, _, action = actor(state)
-        next_state, reward, terminated, truncated, info = env_record.step(action.item())
+            _, _, action = actor(state_eval)
+        next_state, reward, terminated, truncated, info = env_wrapped.step(action.item())
         done = truncated or terminated
-        state = next_state
         test_reward += reward
+        next_state = parse_state(next_state, device=device)
+        state_eval = next_state
         test_steps += 1 
     
     print(f"Test Reward: {test_reward}, in {test_steps} steps")
-    env_record.close()
     print("Recording finished.")
 
         
